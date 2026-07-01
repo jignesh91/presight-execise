@@ -1,119 +1,182 @@
-# Presight Frontend Exercise
+# User Directory
 
-Build a small full-stack user directory application. The goal is to evaluate how you design a searchable, filterable, paginated UI backed by persisted data and clear API boundaries.
+A searchable, filterable, paginated user directory built with React, Node.js, and SQLite.
 
-The application should include:
+## Features
 
-- A React client.
-- A Node.js API server.
-- A SQLite database used as the source of truth for user data.
-- Docker configuration for running the application locally.
+- Full-text search across first and last name
+- Filter by nationalities (OR logic) and hobbies (AND logic)
+- Sort by first name, last name, age, or nationality with deterministic pagination
+- Cursor-based infinite scroll with virtualized rendering
+- Top 20 hobby and nationality counts reflecting all active filters
+- URL state sync -- search, filters, sort are persisted in the query string
+- Responsive layout with collapsible filter sidebar on mobile
 
-## Scenario
+## Tech Stack
 
-Users need to browse a large directory of people, search by name, and narrow results by nationality and hobbies. The filter sidebar should help users discover useful filters based on the result set they are currently viewing.
+- **Client**: React 18, TypeScript, Tailwind CSS, @tanstack/react-query, @tanstack/react-virtual, React Router
+- **Server**: Express, TypeScript, better-sqlite3 (raw SQL)
+- **Build**: Vite (client), tsx (server dev)
+- **Containerization**: Docker, docker-compose
 
-## Requirements
+## Prerequisites
 
-### Data Model
+- Node.js 20+
+- npm 9+
+- Docker and Docker Compose (for containerized setup)
 
-Seed a SQLite database with enough records to make pagination, infinite scroll, search, and filter counts meaningful.
+## Local Development
 
-Each user should have:
+### 1. Clone the repository
 
-- `avatar`
-- `first_name`
-- `last_name`
-- `age`
-- `nationality`
-- `hobbies`, from 0 to 10 hobbies per user
-
-Choose a data model that supports the required behavior.
-
-SQLite must be the persisted source of user data.
-
-### API
-
-Expose an API that supports:
-
-- Paginated user results.
-- Text filtering from user input across `first_name` and `last_name`.
-- Filtering by one or more nationalities.
-- Filtering by one or more hobbies.
-- Sorting by `first_name`, `last_name`, `age`, and `nationality`.
-- Pagination metadata so the client can determine whether more results are available.
-- Top 20 hobbies for the active text filter and filter state, including `{ value, count }`.
-- Top 20 nationalities for the active text filter and filter state, including `{ value, count }`.
-
-The top 20 values and counts must reflect the currently applied text filter and selected filters, not the global dataset.
-
-Filter semantics:
-
-- Multiple selected hobbies should match users who have all selected hobbies.
-- Multiple selected nationalities should match users from any selected nationality.
-- Text, hobby, and nationality filters should apply together.
-
-Sorting semantics:
-
-- Sorted results must be deterministic. Use `id` as a final tie-breaker when values are equal.
-- Pagination must respect the active sort without duplicate or missing users.
-
-### Client
-
-Build a React interface that includes:
-
-- A text filter input for `first_name` and `last_name`.
-- A virtualized, infinitely scrolling list of user cards.
-- A sidebar containing the top 20 hobbies and top 20 nationalities for the current result set, including counts.
-- Controls for applying and removing hobby and nationality filters.
-- Controls for choosing sort field and sort direction.
-- Loading, empty, and error states.
-- A responsive layout that remains usable on desktop and mobile.
-
-User cards should follow this structure:
-
-```text
-|----------------------------------|
-| avatar      first_name+last_name |
-|             nationality      age |
-|                                  |
-|             (2 hobbies) (+n)     |
-|----------------------------------|
+```bash
+git clone https://github.com/jignesh91/presight-execise.git
+cd presight-execise
 ```
 
-Show up to 2 hobbies on the card. If the user has more hobbies, display the remaining count as `+n`.
+### 2. Install dependencies
 
-Use a virtual scroll implementation for the list.
+```bash
+npm install
+```
 
-When the text filter or selected filters change, the client must refresh both:
+This installs dependencies for both the client and server workspaces.
 
-- The paginated user list.
-- The top 20 hobbies and nationalities in the sidebar.
+### 3. Seed the database
 
-The text filter value, selected hobbies, selected nationalities, sort field, and sort direction must be reflected in the URL query string. Reloading or sharing the URL should restore the same view state.
+```bash
+npm run seed
+```
 
-## Implementation Notes
+Creates a SQLite database at `server/data/users.db` with 5000 users, 50 hobbies, and randomized user-hobby associations (0-10 hobbies per user, 30 nationalities).
 
-- Keep the database setup easy to run locally.
-- Include seed logic or a documented command that creates the SQLite database.
-- Include a `Dockerfile` and `docker-compose.yml` that can run the application locally.
+### 4. Start the development servers
 
-## Evaluation Focus
+```bash
+npm run dev
+```
 
-We will pay particular attention to:
+This starts both servers concurrently:
+- **Client**: http://localhost:3000 (Vite dev server with API proxy to :4000)
+- **Server**: http://localhost:4000
 
-- Correct data persistence and API behavior.
-- Correct filtering, sorting, pagination, and top 20 counts.
-- Smooth infinite scrolling with virtualization.
-- URL-synced state.
-- Clear loading, empty, and error states.
-- Easy local and Docker-based setup.
+The client proxies `/api/*` requests to the server, so all requests go through port 3000 during development.
 
-## Deliverables
+Open http://localhost:3000 in your browser.
 
-Please provide:
+## Running with Docker Compose
 
-- Source code for the React client and Node.js server.
-- A `Dockerfile` and `docker-compose.yml`.
-- Instructions for setup, database seeding, and running locally.
-- Instructions for running with Docker Compose.
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/jignesh91/presight-execise.git
+cd presight-execise
+```
+
+### 2. Build and start
+
+```bash
+docker-compose up --build
+```
+
+This builds and starts two containers:
+- **client** (port 3000) -- production React build served by nginx, with API proxy to the server container
+- **server** (port 4000) -- Node.js API server with SQLite
+
+The database is seeded automatically on the first run if `users.db` does not exist. Data is persisted in a Docker volume (`server-data`).
+
+To stop:
+
+```bash
+docker-compose down
+```
+
+To reset the database:
+
+```bash
+docker-compose down -v
+docker-compose up --build
+```
+
+## Project Structure
+
+```
+presight-exercise/
+├── docker-compose.yml
+├── Dockerfile.client          # Multi-stage: build with Vite, serve with nginx
+├── Dockerfile.server          # Node 20 alpine, auto-seeds on first run
+├── package.json               # Workspace root
+├── client/
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── tailwind.config.js
+│   ├── nginx.conf             # API proxy + SPA fallback
+│   ├── index.html
+│   └── src/
+│       ├── main.tsx
+│       ├── App.tsx
+│       ├── types.ts
+│       ├── hooks/
+│       │   ├── useUsers.ts        # Infinite query hook
+│       │   ├── useFilters.ts      # Top-20 filter extraction
+│       │   └── useUrlState.ts     # URL <-> filter state sync
+│       └── components/
+│           ├── Layout.tsx
+│           ├── SearchInput.tsx
+│           ├── SortControls.tsx
+│           ├── FilterSidebar.tsx
+│           ├── FilterSection.tsx
+│           ├── ActiveFilters.tsx
+│           ├── UserCard.tsx
+│           ├── UserList.tsx
+│           └── states/
+│               ├── Loading.tsx
+│               ├── Empty.tsx
+│               └── Error.tsx
+└── server/
+    ├── package.json
+    ├── tsconfig.json
+    └── src/
+        ├── index.ts               # Express entry point
+        ├── db.ts                  # SQLite connection + schema
+        ├── seed.ts                # Seed script
+        ├── types.ts
+        └── routes/
+            └── users.ts           # GET /api/users endpoint
+```
+
+## API
+
+### GET /api/users
+
+| Param | Type | Description |
+|-------|------|-------------|
+| search | string | Text filter on first_name, last_name (LIKE match) |
+| nationalities | string | Comma-separated list, OR logic |
+| hobbies | string | Comma-separated list, AND logic |
+| sort | string | first_name, last_name, age, nationality (default: first_name) |
+| order | string | asc or desc (default: asc) |
+| cursor | string | Base64-encoded pagination cursor |
+| limit | number | Page size, 1-100 (default: 20) |
+
+### Response
+
+```json
+{
+  "users": [
+    {
+      "id": 1,
+      "avatar": "https://i.pravatar.cc/150?u=1",
+      "first_name": "Alice",
+      "last_name": "Smith",
+      "age": 32,
+      "nationality": "American",
+      "hobbies": ["Reading", "Hiking"]
+    }
+  ],
+  "nextCursor": "eyJ2IjoiQWxpY2UiLCJpZCI6MX0",
+  "hasMore": true,
+  "topHobbies": [{ "value": "Reading", "count": 342 }],
+  "topNationalities": [{ "value": "American", "count": 158 }]
+}
+```
